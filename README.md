@@ -12,6 +12,13 @@ Usage: cork [-version] [-include "<type1,type2,...>"] [-reference <ref>] <config
     	Version
 ```
 
+or using docker
+
+```sh
+docker pull echaouchna/cork:latest
+docker run --rm -it -v ~/.config/gcloud:/home/cork/.config/gcloud -v /path/to/config/file.yaml:/tmp/config.yaml echaouchna/cork:latest /tmp/config.yaml
+```
+
 ## Example
 
 Create config.yaml with the following content.
