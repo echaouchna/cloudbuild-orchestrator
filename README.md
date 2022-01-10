@@ -3,14 +3,16 @@
 ## Usage
 ```sh
 $ cork -h
-Usage: cork [-version] [-reference <ref>] <config_file>
+Usage: cork [-version] [-include "<type1,type2,...>"] [-reference <ref>] <config_file>
+  -include string
+    	Types to be included
   -reference string
     	Reference to use for the build (default "develop")
   -version
-    	version
+    	Version
 ```
 
-## Config file example
+## Example
 
 Create config.yaml with the following content.
 
@@ -44,7 +46,7 @@ steps:
 
 Run cork.
 
-```
+```sh
 $ cork config.yaml
 Using reference: develop
 [  RUNNING  ] [demo application/demo-application-dev-tf-plan] started
@@ -55,4 +57,30 @@ Using reference: develop
 [  RUNNING  ] [demo application/cicd-develop-push-trigger] triggered https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject
 [   SKIP    ] demo application cancelled by user
 [  SUCCESS  ] [demo application/cicd-develop-push-trigger] finished https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject
+```
+
+To include only some types:
+
+```sh
+$ cork -include "cicd,deploy" config.yaml
+Using reference: develop
+[  RUNNING  ] [demo application/cicd-develop-push-trigger] started
+[  RUNNING  ] [demo application/cicd-develop-push-trigger] triggered https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject
+[  SUCCESS  ] [demo application/cicd-develop-push-trigger] finished https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject
+[  RUNNING  ] [demo application/demo-application-deploy-dev] started
+[  RUNNING  ] [demo application/demo-application-deploy-dev] triggered https://console.cloud.google.com/cloud-build/builds/buildid3?project=fakeproject
+build failed
+[   ERROR   ] [demo application/demo-application-deploy-dev] FAILURE https://console.cloud.google.com/cloud-build/builds/buildid3?project=fakeproject
+
+```
+
+To use a specific branch name (works also for hashcommits)
+
+```sh
+$ cork -reference feature/enhancements -include "cicd,deploy" config.yaml
+Using reference: feature/enhancements
+[  RUNNING  ] [demo application/cicd-develop-push-trigger] started
+[  RUNNING  ] [demo application/cicd-develop-push-trigger] triggered https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject
+[  SUCCESS  ] [demo application/cicd-develop-push-trigger] finished https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject
+...
 ```

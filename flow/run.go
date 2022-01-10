@@ -39,9 +39,13 @@ func listTriggers(config config.Config, executionFlowContext *ExecutionFlowConte
 }
 
 func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step) error {
+	if len(executionFlowContext.options.IncludedTypes) > 0 &&
+		!utils.Contains(executionFlowContext.options.IncludedTypes, step.Type) {
+		return nil
+	}
 	triggerFullName := step.ProjectId + "/" + step.Trigger
 	buildTrigger := executionFlowContext.triggers[triggerFullName]
-	ref := getRef(executionFlowContext.reference, executionFlowContext.exactRef)
+	ref := getRef(executionFlowContext.options.Reference, executionFlowContext.exactRef)
 	if buildTrigger == nil {
 		message := executionFlowContext.config.Name + " no trigger matching " + triggerFullName + " found"
 		flowLog(Log{Message: message, Progress: SKIP})
@@ -156,14 +160,14 @@ func buildSequence(conf config.Config) floc.Job {
 	return runFloc.Sequence(jobs...)
 }
 
-func run(config config.Config, reference string) {
+func run(config config.Config, options Options) {
 	flowCtx := floc.NewContext()
 
 	executionFlowContext := &ExecutionFlowContext{
-		config:    config,
-		reference: reference,
-		triggers:  make(map[string]*gcp.BuildTrigger),
-		statuses:  make(map[string]BuildStatus),
+		config:   config,
+		options:  options,
+		triggers: make(map[string]*gcp.BuildTrigger),
+		statuses: make(map[string]BuildStatus),
 	}
 
 	flowCtx.AddValue(1, executionFlowContext)

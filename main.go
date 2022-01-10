@@ -4,29 +4,35 @@ import (
 	"cork/config"
 	"cork/config/validate"
 	"cork/flow"
+	"cork/utils"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 var (
-	reference   string
-	version     bool
 	corkVersion string
+	flags       struct {
+		version   bool
+		reference string
+		included  string
+	}
 )
 
 func init() {
-	flag.StringVar(&reference, "reference", "develop", "Reference to use for the build")
-	flag.BoolVar(&version, "version", false, "version")
+	flag.StringVar(&flags.reference, "reference", "develop", "Reference to use for the build")
+	flag.BoolVar(&flags.version, "version", false, "Version")
+	flag.StringVar(&flags.included, "include", "", "Types to be included")
 }
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [-version] [-reference <ref>] <config_file>\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [-version] [-include \"<type1,type2,...>\"] [-reference <ref>] <config_file>\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
-	if version {
+	if flags.version {
 		fmt.Println(corkVersion)
 		os.Exit(0)
 	}
@@ -36,7 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Using reference: " + reference)
+	fmt.Println("Using reference: " + flags.reference)
 
 	filename := flag.Arg(0)
 	c := config.Unmarshal(filename)
@@ -56,5 +62,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	flow.Execute([]config.Config{c}, reference)
+	flow.Execute([]config.Config{c}, flow.Options{
+		Reference:     flags.reference,
+		IncludedTypes: utils.RemoveEmptyStrings(strings.Split(flags.included, ",")),
+	})
 }
