@@ -68,14 +68,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	if intersect := intersect.Hash(flags.included, flags.excluded); len(intersect) > 0 {
-		fmt.Printf("WARNING: Some types are included and excluded\n")
+	includedTypes := utils.RemoveEmptyStrings(strings.Split(flags.included, ","))
+	excludedTypes := utils.RemoveEmptyStrings(strings.Split(flags.excluded, ","))
+
+	if intersect := intersect.Hash(includedTypes, excludedTypes); len(intersect) > 0 {
+		fmt.Printf("WARNING: The following types are included and excluded: %s\n", intersect)
 	}
 
 	flow.Execute([]config.Config{c}, flow.Options{
 		Reference:     flags.reference,
 		NoFastFailing: flags.NoFastFailing,
-		IncludedTypes: utils.RemoveEmptyStrings(strings.Split(flags.included, ",")),
-		ExcludedTypes: utils.RemoveEmptyStrings(strings.Split(flags.excluded, ",")),
+		IncludedTypes: includedTypes,
+		ExcludedTypes: excludedTypes,
 	})
 }
