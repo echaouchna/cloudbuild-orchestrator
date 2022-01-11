@@ -17,7 +17,8 @@ WORKDIR /app
 
 COPY --from=builder /app/bin/cork .
 
-RUN adduser -D ${user}
+RUN addgroup -g ${gid} ${group} && \
+    adduser -D -u ${uid} -G ${group} ${user}
 
 USER ${user}
 
