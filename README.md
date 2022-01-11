@@ -56,7 +56,7 @@ steps:
     type: deploy
 ```
 
-Run cork.
+Run cork:
 
 ```sh
 $ cork config.yaml
@@ -71,7 +71,7 @@ Using reference: develop
 [  SUCCESS  ] [demo application/cicd-develop-push-trigger] finished https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject
 ```
 
-To include only some types, wildcards are accepted here (same goes for excluded types):
+To include only some types (wildcards are accepted here):
 
 ```sh
 $ cork -include "cicd,*deploy*" config.yaml
