@@ -18,6 +18,9 @@ func listUniqueProjects(config config.Config) []string {
 		if len(step.Parallel) > 0 {
 			for _, parallelStep := range step.Parallel {
 				project = parallelStep.ProjectId
+				if !utils.Contains(uniqueProjects, project) {
+					uniqueProjects = append(uniqueProjects, project)
+				}
 			}
 		} else {
 			project = step.ProjectId
@@ -38,12 +41,21 @@ func listTriggers(config config.Config, executionFlowContext *ExecutionFlowConte
 	}
 }
 
+func shouldHandleTrigger(options Options, stepType string) bool {
+	if (len(options.IncludedTypes) > 0 &&
+		!utils.MatchAtLeastOne(options.IncludedTypes, stepType)) ||
+		(len(options.ExcludedTypes) > 0 &&
+			utils.MatchAtLeastOne(options.ExcludedTypes, stepType)) {
+		return false
+	}
+	return true
+}
+
 func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step) error {
-	if len(executionFlowContext.options.IncludedTypes) > 0 &&
-		!utils.Contains(executionFlowContext.options.IncludedTypes, step.Type) {
+	triggerFullName := step.ProjectId + "/" + step.Trigger
+	if !shouldHandleTrigger(executionFlowContext.options, step.Type) {
 		return nil
 	}
-	triggerFullName := step.ProjectId + "/" + step.Trigger
 	buildTrigger := executionFlowContext.triggers[triggerFullName]
 	ref := getRef(executionFlowContext.options.Reference, executionFlowContext.exactRef)
 	if buildTrigger == nil {

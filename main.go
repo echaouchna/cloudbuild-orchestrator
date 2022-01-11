@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/juliangruber/go-intersect"
 )
 
 var (
@@ -17,6 +19,7 @@ var (
 		version   bool
 		reference string
 		included  string
+		excluded  string
 	}
 )
 
@@ -24,11 +27,12 @@ func init() {
 	flag.StringVar(&flags.reference, "reference", "develop", "Reference to use for the build")
 	flag.BoolVar(&flags.version, "version", false, "Version")
 	flag.StringVar(&flags.included, "include", "", "Types to be included")
+	flag.StringVar(&flags.excluded, "exclude", "", "Types to be excluded")
 }
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [-version] [-include \"<type1,type2,...>\"] [-reference <ref>] <config_file>\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [-version] [-include \"<type1,type2,...>\"] [-exclude \"<typeA,typeB,...>\"] [-reference <ref>] <config_file>\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -62,8 +66,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if intersect := intersect.Hash(flags.included, flags.excluded); len(intersect) > 0 {
+		fmt.Printf("WARNING: Some types are included and excluded\n")
+	}
+
 	flow.Execute([]config.Config{c}, flow.Options{
 		Reference:     flags.reference,
 		IncludedTypes: utils.RemoveEmptyStrings(strings.Split(flags.included, ",")),
+		ExcludedTypes: utils.RemoveEmptyStrings(strings.Split(flags.excluded, ",")),
 	})
 }

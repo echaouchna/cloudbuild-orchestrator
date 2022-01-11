@@ -3,7 +3,9 @@
 ## Usage
 ```sh
 $ cork -h
-Usage: cork [-version] [-include "<type1,type2,...>"] [-reference <ref>] <config_file>
+Usage: cork [-version] [-include "<type1,type2,...>"] [-exclude "<typeA,typeB,...>"] [-reference <ref>] <config_file>
+  -exclude string
+    	Types to be excluded
   -include string
     	Types to be included
   -reference string
@@ -66,10 +68,10 @@ Using reference: develop
 [  SUCCESS  ] [demo application/cicd-develop-push-trigger] finished https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject
 ```
 
-To include only some types:
+To include only some types, wildcards are accepted here (same goes for excluded types):
 
 ```sh
-$ cork -include "cicd,deploy" config.yaml
+$ cork -include "cicd,*deploy*" config.yaml
 Using reference: develop
 [  RUNNING  ] [demo application/cicd-develop-push-trigger] started
 [  RUNNING  ] [demo application/cicd-develop-push-trigger] triggered https://console.cloud.google.com/cloud-build/builds/buildid2?project=fakeproject

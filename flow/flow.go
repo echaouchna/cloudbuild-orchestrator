@@ -14,6 +14,7 @@ type BuildStatus struct {
 type Options struct {
 	Reference     string
 	IncludedTypes []string
+	ExcludedTypes []string
 }
 
 type ExecutionFlowContext struct {
