@@ -51,8 +51,23 @@ func shouldHandleTrigger(options Options, stepType string) bool {
 	return true
 }
 
+func returnConditionally(noFastFailing bool, err error) error {
+	if noFastFailing {
+		return nil
+	}
+	return err
+}
+
 func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step) error {
 	triggerFullName := step.ProjectId + "/" + step.Trigger
+	func() {
+		executionFlowContext.lock.Lock()
+		defer executionFlowContext.lock.Unlock()
+		executionFlowContext.statuses[step.Name] = BuildStatus{
+			value:  SKIP,
+			logUrl: "",
+		}
+	}()
 	if !shouldHandleTrigger(executionFlowContext.options, step.Type) {
 		return nil
 	}
@@ -61,10 +76,15 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 	if buildTrigger == nil {
 		message := executionFlowContext.config.Name + " no trigger matching " + triggerFullName + " found"
 		flowLog(Log{Message: message, Progress: SKIP})
-		return errors.New(message)
+		return returnConditionally(executionFlowContext.options.NoFastFailing, errors.New(message))
 	}
 	triggerName := executionFlowContext.config.Name + "/" + buildTrigger.Name
 	if step.DependsOn != "" {
+		if executionFlowContext.options.NoFastFailing && executionFlowContext.statuses[step.DependsOn].value != gcp.SUCCESS {
+			message := step.Name + " depends on " + step.DependsOn + " that has status " + executionFlowContext.statuses[step.DependsOn].value
+			flowLog(Log{Message: message, Progress: SKIP})
+			return nil
+		}
 		responseChannel := make(chan bool)
 		defer close(responseChannel)
 		flowInputWait(WaitInput{
@@ -77,9 +97,9 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 		response := <-responseChannel
 
 		if !response {
-			message := executionFlowContext.config.Name + " cancelled by user"
+			message := triggerName + " cancelled by user"
 			flowLog(Log{Message: message, Progress: SKIP})
-			return errors.New(message)
+			return returnConditionally(executionFlowContext.options.NoFastFailing, errors.New(message))
 		}
 	}
 	flowLog(Log{Trigger: triggerName, Message: "started", Progress: gcp.RUNNING})
@@ -94,7 +114,7 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 			Message:  err.Error(),
 			Progress: gcp.FAILURE,
 		})
-		return err
+		return returnConditionally(executionFlowContext.options.NoFastFailing, err)
 	}
 
 	func() {
@@ -111,10 +131,14 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 	})
 
 	status := waitForBuild(step.ProjectId, build.ID)
-	executionFlowContext.statuses[step.Name] = BuildStatus{
-		value:  status,
-		logUrl: build.LogURL,
-	}
+	func() {
+		executionFlowContext.lock.Lock()
+		defer executionFlowContext.lock.Unlock()
+		executionFlowContext.statuses[step.Name] = BuildStatus{
+			value:  status,
+			logUrl: build.LogURL,
+		}
+	}()
 
 	switch status {
 	case gcp.SUCCESS:
@@ -131,7 +155,7 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 			LogUrl:   build.LogURL,
 			Progress: status,
 		})
-		return errors.New("build failed")
+		return returnConditionally(executionFlowContext.options.NoFastFailing, errors.New("build failed"))
 	default:
 		return errors.New("Unknown status " + status)
 	}

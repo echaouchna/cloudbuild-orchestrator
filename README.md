@@ -1,17 +1,20 @@
 # cloudbuild-orchestrator (cork)
 
 ## Usage
+
 ```sh
 $ cork -h
-Usage: cork [-version] [-include "<type1,type2,...>"] [-exclude "<typeA,typeB,...>"] [-reference <ref>] <config_file>
+Usage: cork [-exclude "<typeA,typeB,...>"] [-include "<type1,type2,...>"] [-no-fast-failing] [-reference <ref>] <config_file>
   -exclude string
-    	Types to be excluded
+        Types to be excluded
   -include string
-    	Types to be included
+        Types to be included
+  -no-fast-failing
+        No fast failing
   -reference string
-    	Reference to use for the build (default "develop")
+        Reference to use for the build (default "develop")
   -version
-    	Version
+        Version
 ```
 
 or using docker

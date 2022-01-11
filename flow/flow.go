@@ -15,6 +15,7 @@ type Options struct {
 	Reference     string
 	IncludedTypes []string
 	ExcludedTypes []string
+	NoFastFailing bool
 }
 
 type ExecutionFlowContext struct {
