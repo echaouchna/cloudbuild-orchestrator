@@ -18,3 +18,7 @@ cork
 # vendor/
 
 .vscode
+
+*.yaml
+*.yml
+*.json

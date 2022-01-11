@@ -16,7 +16,6 @@ ARG gid=1000
 WORKDIR /app
 
 COPY --from=builder /app/bin/cork .
-COPY config.yaml /etc/cork/config.yaml
 
 RUN adduser -D ${user}
 
