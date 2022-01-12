@@ -1,5 +1,7 @@
 # cloudbuild-orchestrator (cork)
 
+A simple orchestrator for Google Cloud Build triggers
+
 ## Usage
 
 ```sh
