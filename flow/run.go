@@ -85,18 +85,13 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 			flowLog(Log{Message: message, Progress: SKIP})
 			return nil
 		}
-		responseChannel := make(chan bool)
-		defer close(responseChannel)
-		flowInputWait(WaitInput{
-			Trigger:         triggerName,
-			Message:         fmt.Sprintf("Please validate %s to continue", step.DependsOn),
-			ResponseChannel: responseChannel,
-			LogUrl:          executionFlowContext.statuses[step.DependsOn].logUrl,
+		ynResponse := waitForInput(WaitInput{
+			Trigger: triggerName,
+			Message: fmt.Sprintf("Please validate %s to continue", step.DependsOn),
+			LogUrl:  executionFlowContext.statuses[step.DependsOn].logUrl,
 		})
 
-		response := <-responseChannel
-
-		if !response {
+		if !ynResponse {
 			message := triggerName + " cancelled by user"
 			flowLog(Log{Message: message, Progress: SKIP})
 			return returnConditionally(executionFlowContext.options.NoFastFailing, errors.New(message))
@@ -218,6 +213,4 @@ func run(config config.Config, options Options) {
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	flowLog(Log{Progress: ALL_DONE})
 }

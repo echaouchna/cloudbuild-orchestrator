@@ -33,11 +33,11 @@ var (
 
 func Execute(configs []config.Config, options Options) {
 	defer wg.Wait()
-	startLogger(&wg)
 	for _, c := range configs {
 		config := c
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			run(config, options)
 		}()
 	}
