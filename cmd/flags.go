@@ -44,8 +44,8 @@ func Parse() Options {
 				"[-exclude \"<typeA,typeB,...>\"] "+
 				"[-include \"<type1,type2,...>\"] "+
 				"[-no-fast-failing] "+
-				"[-reference <ref>] "+
 				"[-parallel <number>] "+
+				"[-reference <ref>] "+
 				"<config_file>\n", os.Args[0],
 		)
 		flag.PrintDefaults()
