@@ -5,6 +5,9 @@ DOCKER_USER ?= cork
 build:
 	go build -ldflags '-X main.corkVersion=${VERSION}' -o cork
 
+test:
+	go test ./...
+
 dist:
 	@gox \
 		-ldflags='-X cork/cmd.corkVersion=${VERSION}' \

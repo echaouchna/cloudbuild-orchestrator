@@ -380,7 +380,6 @@ func PrintWantGot(t *testing.T, diff string) string {
 func compareStringSlices(t *testing.T, expected, actual []string) error {
 	t.Helper()
 	if d := cmp.Diff(expected, actual,
-		cmpopts.IgnoreFields(testTask{}, "deps", "status"),
 		cmpopts.SortSlices(func(a string, b string) bool { return a < b }),
 	); d != "" {
 		return fmt.Errorf("Dags contain different nodes: %s", PrintWantGot(t, d))
