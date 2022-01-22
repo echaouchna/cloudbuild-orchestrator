@@ -2,6 +2,23 @@
 
 A simple orchestrator for Google Cloud Build triggers
 
+## Install
+
+Install using brew:
+
+```sh
+brew install echaouchna/tap/cork
+```
+
+Using docker
+
+```sh
+docker pull echaouchna/cork:latest
+docker run --rm -it -v ~/.config/gcloud:/home/cork/.config/gcloud -v /path/to/config/file.yaml:/tmp/config.yaml echaouchna/cork:latest /tmp/config.yaml
+```
+
+Or download binary from github releases
+
 ## Usage
 
 ```sh
@@ -19,13 +36,6 @@ Usage: cork [-exclude "<typeA,typeB,...>"] [-include "<type1,type2,...>"] [-no-f
         Reference to use for the build (default "develop")
   -version
         Version
-```
-
-or using docker
-
-```sh
-docker pull echaouchna/cork:latest
-docker run --rm -it -v ~/.config/gcloud:/home/cork/.config/gcloud -v /path/to/config/file.yaml:/tmp/config.yaml echaouchna/cork:latest /tmp/config.yaml
 ```
 
 ## Example
