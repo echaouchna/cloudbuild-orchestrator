@@ -1,101 +1,93 @@
 package flow
 
 import (
+	"cork/cmd"
 	"cork/config"
+	"cork/dag"
 	"cork/gcp"
 	"cork/utils"
 	"errors"
 	"fmt"
-
-	"github.com/workanator/go-floc/v3"
-	runFloc "github.com/workanator/go-floc/v3/run"
+	"sync"
 )
 
-func listUniqueProjects(config config.Config) []string {
-	uniqueProjects := []string{}
-	for _, step := range config.Steps {
-		var project string
-		if len(step.Parallel) > 0 {
-			for _, parallelStep := range step.Parallel {
-				project = parallelStep.ProjectId
-				if !utils.Contains(uniqueProjects, project) {
-					uniqueProjects = append(uniqueProjects, project)
-				}
-			}
-		} else {
-			project = step.ProjectId
-		}
-		if !utils.Contains(uniqueProjects, project) {
-			uniqueProjects = append(uniqueProjects, project)
-		}
-	}
-	return uniqueProjects
+type executionContext struct {
+	lock     sync.Mutex
+	conf     *config.Config
+	exactRef string
+	options  cmd.Options
+	triggers map[string]*gcp.BuildTrigger
+	dag      *dag.Dag
 }
 
-func listTriggers(config config.Config, executionFlowContext *ExecutionFlowContext) {
-	uniqueProjects := listUniqueProjects(config)
+func listUniqueProjects(d *dag.Dag) []string {
+	uniqueProjectIDs := []string{}
+	for _, node := range d.Nodes {
+		projectID := node.Task.(config.Step).ProjectId
+		if !utils.Contains(uniqueProjectIDs, projectID) {
+			uniqueProjectIDs = append(uniqueProjectIDs, projectID)
+		}
+	}
+	return uniqueProjectIDs
+}
+
+func listTriggers(d *dag.Dag) map[string]*gcp.BuildTrigger {
+	triggers := map[string]*gcp.BuildTrigger{}
+	uniqueProjects := listUniqueProjects(d)
 	for _, project := range uniqueProjects {
 		for k, v := range gcp.ListTriggers(project) {
-			executionFlowContext.triggers[k] = v
+			triggers[k] = v
 		}
 	}
+	return triggers
 }
 
-func shouldHandleTrigger(options Options, stepType string) bool {
-	if (len(options.IncludedTypes) > 0 &&
-		!utils.MatchAtLeastOne(options.IncludedTypes, stepType)) ||
-		(len(options.ExcludedTypes) > 0 &&
-			utils.MatchAtLeastOne(options.ExcludedTypes, stepType)) {
-		return false
+func waitForDepBuilds(ctx *executionContext, step config.Step, triggerName string) error {
+	if step.Manual {
+		for _, dep := range step.DependsOn {
+			if ctx.dag.Nodes[dep].Task.(config.Step).Status != gcp.SUCCESS {
+				message := step.Name + " depends on " + dep + " that has status " + ctx.dag.Nodes[dep].Task.(config.Step).Status
+				flowLog(Log{Message: message, Progress: SKIP})
+				return nil
+			}
+			ynResponse := waitForInput(WaitInput{
+				Trigger: triggerName,
+				Message: fmt.Sprintf("Please validate %s to continue", dep),
+				LogUrl:  ctx.dag.Nodes[dep].Task.(config.Step).LogUrl,
+			})
+
+			if !ynResponse {
+				message := triggerName + " cancelled by user"
+				flowLog(Log{Message: message, Progress: SKIP})
+				return errors.New(message)
+			}
+		}
 	}
-	return true
+	return nil
 }
 
-func returnConditionally(noFastFailing bool, err error) error {
-	if noFastFailing {
-		return nil
-	}
-	return err
-}
-
-func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step) error {
+func handleTrigger(node *dag.Node, ctx *executionContext) error {
+	step := node.Task.(config.Step)
+	defer func() {
+		node.Task = step
+	}()
 	triggerFullName := step.ProjectId + "/" + step.Trigger
 	func() {
-		executionFlowContext.lock.Lock()
-		defer executionFlowContext.lock.Unlock()
-		executionFlowContext.statuses[step.Name] = BuildStatus{
-			value:  SKIP,
-			logUrl: "",
-		}
+		ctx.lock.Lock()
+		defer ctx.lock.Unlock()
+		step.Status = SKIP
 	}()
-	if !shouldHandleTrigger(executionFlowContext.options, step.Type) {
-		return nil
-	}
-	buildTrigger := executionFlowContext.triggers[triggerFullName]
-	ref := getRef(executionFlowContext.options.Reference, executionFlowContext.exactRef)
+	buildTrigger := ctx.triggers[triggerFullName]
+	ref := getRef(ctx.options.Reference, ctx.exactRef)
 	if buildTrigger == nil {
-		message := executionFlowContext.config.Name + " no trigger matching " + triggerFullName + " found"
+		message := ctx.conf.Name + " no trigger matching " + triggerFullName + " found"
 		flowLog(Log{Message: message, Progress: SKIP})
-		return returnConditionally(executionFlowContext.options.NoFastFailing, errors.New(message))
+		return errors.New(message)
 	}
-	triggerName := executionFlowContext.config.Name + "/" + buildTrigger.Name
-	if step.DependsOn != "" {
-		if executionFlowContext.options.NoFastFailing && executionFlowContext.statuses[step.DependsOn].value != gcp.SUCCESS {
-			message := step.Name + " depends on " + step.DependsOn + " that has status " + executionFlowContext.statuses[step.DependsOn].value
-			flowLog(Log{Message: message, Progress: SKIP})
-			return nil
-		}
-		ynResponse := waitForInput(WaitInput{
-			Trigger: triggerName,
-			Message: fmt.Sprintf("Please validate %s to continue", step.DependsOn),
-			LogUrl:  executionFlowContext.statuses[step.DependsOn].logUrl,
-		})
-
-		if !ynResponse {
-			message := triggerName + " cancelled by user"
-			flowLog(Log{Message: message, Progress: SKIP})
-			return returnConditionally(executionFlowContext.options.NoFastFailing, errors.New(message))
-		}
+	triggerName := ctx.conf.Name + "/" + buildTrigger.Name
+	err := waitForDepBuilds(ctx, step, triggerName)
+	if err != nil {
+		return err
 	}
 	flowLog(Log{Trigger: triggerName, Message: "started", Progress: gcp.RUNNING})
 	build, err := gcp.TriggerCloudBuild(
@@ -109,13 +101,13 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 			Message:  err.Error(),
 			Progress: gcp.FAILURE,
 		})
-		return returnConditionally(executionFlowContext.options.NoFastFailing, err)
+		return err
 	}
 
 	func() {
-		executionFlowContext.lock.Lock()
-		defer executionFlowContext.lock.Unlock()
-		setExactRef(&executionFlowContext.exactRef, build)
+		ctx.lock.Lock()
+		defer ctx.lock.Unlock()
+		setExactRef(&ctx.exactRef, build)
 	}()
 
 	flowLog(Log{
@@ -127,12 +119,10 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 
 	status := waitForBuild(step.ProjectId, build.ID)
 	func() {
-		executionFlowContext.lock.Lock()
-		defer executionFlowContext.lock.Unlock()
-		executionFlowContext.statuses[step.Name] = BuildStatus{
-			value:  status,
-			logUrl: build.LogURL,
-		}
+		ctx.lock.Lock()
+		defer ctx.lock.Unlock()
+		step.Status = status
+		step.LogUrl = build.LogURL
 	}()
 
 	switch status {
@@ -150,67 +140,80 @@ func handleTrigger(executionFlowContext *ExecutionFlowContext, step config.Step)
 			LogUrl:   build.LogURL,
 			Progress: status,
 		})
-		return returnConditionally(executionFlowContext.options.NoFastFailing, errors.New("build failed"))
+		return errors.New("build failed")
 	default:
 		return errors.New("Unknown status " + status)
 	}
 	return nil
 }
 
-func buildSequence(conf config.Config) floc.Job {
-	jobs := []floc.Job{}
-
-	for _, s := range conf.Steps {
-		step := s
-		var job floc.Job
-		if len(step.Parallel) == 0 {
-			job = func(ctx floc.Context, ctrl floc.Control) error {
-				executionFlowContext := ctx.Value(1).(*ExecutionFlowContext)
-				return handleTrigger(executionFlowContext, step)
-			}
-		} else {
-			parallelJobs := []floc.Job{}
-			for _, ps := range step.Parallel {
-				parallelStep := ps
-				parallelJobs = append(parallelJobs, func(ctx floc.Context, ctrl floc.Control) error {
-					executionFlowContext := ctx.Value(1).(*ExecutionFlowContext)
-					return handleTrigger(executionFlowContext, config.Step{
-						ProjectId: parallelStep.ProjectId,
-						Trigger:   parallelStep.Trigger,
-						Type:      parallelStep.Type,
-						Name:      parallelStep.Name,
-						DependsOn: parallelStep.DependsOn,
-					})
-				})
-			}
-			job = runFloc.Parallel(parallelJobs...)
-		}
-		jobs = append(jobs, job)
+func runJob(jobs chan *dag.Node, results chan error, ctx *executionContext) {
+	for j := range jobs {
+		err := handleTrigger(j, ctx)
+		results <- err
 	}
-
-	return runFloc.Sequence(jobs...)
 }
 
-func run(config config.Config, options Options) {
-	flowCtx := floc.NewContext()
+func initJobs(jobs chan *dag.Node, results chan error, ctx *executionContext) {
+	for w := 0; w < ctx.options.NumParallelJobs; w++ {
+		go runJob(jobs, results, ctx)
+	}
+}
 
-	executionFlowContext := &ExecutionFlowContext{
-		config:   config,
+func startStep(jobs chan *dag.Node, node *dag.Node) {
+	step := node.Task.(config.Step)
+	step.Status = gcp.RUNNING
+	node.Task = step
+	jobs <- node
+}
+
+func waitForResults(options cmd.Options, jobsNumber int, d *dag.Dag, jobs chan *dag.Node, results chan error) {
+	for i := 0; i < jobsNumber; i++ {
+		result := <-results
+		if result != nil && !options.NoFastFailing {
+			fmt.Println(result.Error())
+			fmt.Println("Fast failing")
+			return
+		}
+
+		schedulableStepKeys, err := d.GetNodesToSchedule()
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+
+		for _, stepKey := range schedulableStepKeys {
+			startStep(jobs, d.Nodes[stepKey])
+		}
+	}
+}
+
+func run(d *dag.Dag, conf *config.Config, options cmd.Options) {
+	triggers := listTriggers(d)
+
+	jobs := make(chan *dag.Node, len(d.Nodes))
+	defer close(jobs)
+
+	results := make(chan error, len(d.Nodes))
+	defer close(results)
+
+	ctx := &executionContext{
 		options:  options,
-		triggers: make(map[string]*gcp.BuildTrigger),
-		statuses: make(map[string]BuildStatus),
+		conf:     conf,
+		triggers: triggers,
+		dag:      d,
 	}
 
-	flowCtx.AddValue(1, executionFlowContext)
+	initJobs(jobs, results, ctx)
 
-	listTriggers(config, executionFlowContext)
-
-	flow := buildSequence(config)
-
-	ctrl := floc.NewControl(flowCtx)
-
-	_, _, err := floc.RunWith(flowCtx, ctrl, flow)
+	schedulableStepKeys, err := d.GetNodesToSchedule()
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
+	for _, stepKey := range schedulableStepKeys {
+		startStep(jobs, d.Nodes[stepKey])
+	}
+
+	waitForResults(options, len(d.Nodes), d, jobs, results)
 }

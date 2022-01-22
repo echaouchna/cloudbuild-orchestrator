@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN go build -o bin/cork
+RUN GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o bin/cork
 
 FROM alpine:3.15
 

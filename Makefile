@@ -7,7 +7,7 @@ build:
 
 dist:
 	@gox \
-		-ldflags='-X main.corkVersion=${VERSION}' \
+		-ldflags='-X cork/cmd.corkVersion=${VERSION}' \
 		--osarch "!darwin/386" \
 		-output="bin/cork-{{.OS}}-{{.Arch}}"
 

@@ -28,6 +28,7 @@ func RemoveEmptyStrings(s []string) []string {
 func WildCardToRegexp(pattern string) (bool, string) {
 	var result strings.Builder
 	isWildCard := false
+	result.WriteString("^")
 	for i, literal := range strings.Split(pattern, "*") {
 
 		if i > 0 {
@@ -37,6 +38,7 @@ func WildCardToRegexp(pattern string) (bool, string) {
 
 		result.WriteString(regexp.QuoteMeta(literal))
 	}
+	result.WriteString("$")
 	return isWildCard, result.String()
 }
 
