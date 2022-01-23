@@ -117,7 +117,10 @@ func handleTrigger(node *dag.Node, ctx *executionContext) error {
 		Progress: gcp.RUNNING,
 	})
 
-	status := waitForBuild(step.ProjectId, build.ID)
+	status, err := waitForBuild(step.ProjectId, build.ID)
+	if err != nil {
+		return err
+	}
 	func() {
 		ctx.lock.Lock()
 		defer ctx.lock.Unlock()

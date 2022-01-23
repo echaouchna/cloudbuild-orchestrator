@@ -3,7 +3,6 @@ package flow
 import (
 	"cork/gcp"
 	"cork/utils"
-	"log"
 	"regexp"
 	"time"
 )
@@ -36,21 +35,23 @@ func getRef(cloudBuildRef string, exactRef string) string {
 	return exactRef
 }
 
-func waitForBuild(projectId string, buildId string) string {
+func waitForBuild(projectId string, buildId string) (string, error) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	retries := 3
+	var retErr error = nil
 	for range ticker.C {
 		status, err := gcp.GetBuild(projectId, buildId)
 		if err != nil {
 			if retries == 0 {
-				log.Fatalln(err)
+				retErr = err
+				break
 			}
 			retries -= 1
 		}
 		if utils.Contains([]string{gcp.SUCCESS, gcp.FAILURE, gcp.CANCELLED}, status) {
-			return status
+			return status, nil
 		}
 	}
-	return ""
+	return "", retErr
 }
