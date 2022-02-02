@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	beep "github.com/gen2brain/beeep"
 	"github.com/gookit/color"
 )
 
@@ -60,6 +61,10 @@ func errorMessage(trigger string, message string, url string) {
 		message,
 		urlLink(url),
 	)
+	err := beep.Alert("ERROR", trigger, "assets/warning.png")
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }
 
 func successMessage(trigger string, message string, url string) {
@@ -70,6 +75,10 @@ func successMessage(trigger string, message string, url string) {
 		message,
 		urlLink(url),
 	)
+	err := beep.Notify("SUCCESS", trigger, "assets/information.png")
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }
 
 func progressMessage(trigger string, message string, url string) {
